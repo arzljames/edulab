@@ -32,8 +32,19 @@ export function toApiError(error: unknown): ApiError {
       fieldErrors: body.success ? body.data.fieldErrors : undefined,
     }
   }
-  if (error instanceof Error) {
-    return { status: null, message: error.message || FALLBACK_MESSAGE }
+  if (error instanceof z.ZodError) {
+    return { status: null, message: FALLBACK_MESSAGE, code: 'INVALID_RESPONSE' }
   }
+  // Never show raw internal error messages to users.
   return { status: null, message: FALLBACK_MESSAGE }
+}
+
+/** Parse an API response with Zod, throwing a normalized ApiError on mismatch. */
+export function parseResponse<T extends z.ZodTypeAny>(schema: T, data: unknown): z.output<T> {
+  const result = schema.safeParse(data)
+  if (!result.success) {
+    if (import.meta.env.DEV) console.error('API response failed validation', result.error)
+    throw toApiError(result.error)
+  }
+  return result.data
 }
